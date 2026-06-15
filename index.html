@@ -1,0 +1,1665 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>基金收益可视化</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --text: #172033;
+      --muted: #6b7280;
+      --line: #d9e0ea;
+      --brand: #0f766e;
+      --brand-strong: #0b5f59;
+      --red: #d92d20;
+      --green: #12805c;
+      --amber: #b76e00;
+      --blue: #2563eb;
+      --shadow: 0 12px 30px rgba(23, 32, 51, 0.08);
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid transparent;
+      border-radius: 8px;
+      cursor: pointer;
+      min-height: 38px;
+      padding: 0 14px;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 650;
+    }
+
+    button:hover {
+      background: var(--brand-strong);
+    }
+
+    button.secondary {
+      background: #fff;
+      border-color: var(--line);
+      color: var(--text);
+    }
+
+    button.secondary:hover {
+      background: var(--panel-soft);
+    }
+
+    button.danger {
+      background: #fff;
+      border-color: #f0b7b2;
+      color: var(--red);
+    }
+
+    button.danger:hover {
+      background: #fff4f2;
+    }
+
+    button.icon {
+      min-width: 38px;
+      padding: 0;
+      font-size: 17px;
+      line-height: 1;
+    }
+
+    input {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      padding: 8px 10px;
+      outline: none;
+    }
+
+    input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .app {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 44px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .title h1 {
+      margin: 0 0 6px;
+      font-size: clamp(26px, 4vw, 40px);
+      letter-spacing: 0;
+    }
+
+    .title p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .notice {
+      margin: 0 0 18px;
+      padding: 11px 12px;
+      border: 1px solid #fde1a6;
+      background: #fff8e6;
+      color: #7a4a00;
+      border-radius: 8px;
+      line-height: 1.5;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric,
+    .empty,
+    .fund-card,
+    .modal-panel {
+      background: var(--panel);
+      border: 1px solid rgba(217, 224, 234, 0.9);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      padding: 16px;
+      min-height: 106px;
+      display: grid;
+      align-content: space-between;
+      gap: 10px;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: clamp(22px, 3vw, 30px);
+      letter-spacing: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .metric small {
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 18px 0 12px;
+    }
+
+    .toolbar h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .fund-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .fund-card {
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .fund-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .fund-title {
+      min-width: 0;
+    }
+
+    .fund-title h3 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      padding: 0 9px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .mini-metric {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px;
+      min-height: 76px;
+    }
+
+    .mini-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 7px;
+      font-weight: 700;
+    }
+
+    .mini-metric strong {
+      display: block;
+      font-size: 17px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .positive {
+      color: var(--red);
+    }
+
+    .negative {
+      color: var(--green);
+    }
+
+    .neutral {
+      color: var(--muted);
+    }
+
+    .entry-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) 145px 132px;
+      gap: 10px;
+      align-items: end;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .advice {
+      border: 1px solid #d8eee8;
+      background: #f2fbf8;
+      color: #075c46;
+      border-radius: 8px;
+      padding: 12px;
+      line-height: 1.55;
+    }
+
+    .advice.warn {
+      border-color: #f4d7a6;
+      background: #fff8e8;
+      color: #794600;
+    }
+
+    .advice.reduce {
+      border-color: #f0c2bd;
+      background: #fff4f2;
+      color: #8f1d16;
+    }
+
+    .chart-wrap {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 220px;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .chart-box {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 178px;
+    }
+
+    .chart-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .chart {
+      width: 100%;
+      height: 128px;
+      display: block;
+      overflow: visible;
+    }
+
+    .history-list {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .history-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .history-row:last-child {
+      border-bottom: 0;
+    }
+
+    .empty {
+      padding: 34px 20px;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .empty strong {
+      display: block;
+      color: var(--text);
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      place-items: center;
+      background: rgba(15, 23, 42, 0.38);
+      padding: 18px;
+      z-index: 10;
+    }
+
+    .modal.open {
+      display: grid;
+    }
+
+    .modal-panel {
+      width: min(720px, 100%);
+      max-height: min(92vh, 760px);
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .modal-head h2 {
+      margin: 0;
+      font-size: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .form-grid .full {
+      grid-column: 1 / -1;
+    }
+
+    .suggestions {
+      display: grid;
+      gap: 8px;
+      max-height: 220px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px;
+      background: var(--panel-soft);
+    }
+
+    .suggestions:empty {
+      display: none;
+    }
+
+    .suggestion {
+      display: grid;
+      grid-template-columns: 82px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      text-align: left;
+      width: 100%;
+      min-height: 40px;
+      background: #fff;
+      border-color: var(--line);
+      color: var(--text);
+      font-weight: 500;
+      padding: 8px 10px;
+    }
+
+    .suggestion:hover,
+    .suggestion.selected {
+      border-color: var(--brand);
+      background: #ecfdf8;
+    }
+
+    .suggestion small {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(420px, calc(100vw - 36px));
+      background: #172033;
+      color: #fff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: var(--shadow);
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      z-index: 20;
+      line-height: 1.5;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .file-tools {
+      display: none;
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 8px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+    }
+
+    .file-tools.open {
+      display: grid;
+      gap: 10px;
+    }
+
+    @media (max-width: 940px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .card-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .chart-wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        width: min(100vw - 22px, 1180px);
+        padding-top: 18px;
+      }
+
+      .topbar,
+      .fund-head {
+        display: grid;
+      }
+
+      .actions,
+      .card-actions {
+        justify-content: start;
+      }
+
+      .summary-grid,
+      .card-grid,
+      .form-grid,
+      .entry-row {
+        grid-template-columns: 1fr;
+      }
+
+      .metric strong {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="topbar">
+      <div class="title">
+        <h1>基金收益可视化</h1>
+        <p>多基金本地管理，每天录入新增买入金额，实时估算收益与短期走势。</p>
+      </div>
+      <div class="actions">
+        <button id="addFundBtn">添加基金</button>
+        <button id="refreshBtn" class="secondary">刷新行情</button>
+        <button id="toolsBtn" class="secondary">数据工具</button>
+      </div>
+    </section>
+
+    <p class="notice">收益和加减仓建议基于公开估值接口与本地录入估算，仅供个人记录参考，不构成投资建议。</p>
+
+    <section class="summary-grid" aria-label="组合总览">
+      <div class="metric">
+        <span>累计投入本金</span>
+        <strong id="totalPrincipal">--</strong>
+        <small id="fundCount">0 只基金</small>
+      </div>
+      <div class="metric">
+        <span>估算当前总市值</span>
+        <strong id="totalMarketValue">--</strong>
+        <small>本金 + 估算累计收益</small>
+      </div>
+      <div class="metric">
+        <span>今日估算总收益</span>
+        <strong id="totalDayProfit">--</strong>
+        <small id="lastRefresh">尚未刷新</small>
+      </div>
+      <div class="metric">
+        <span>估算累计总收益</span>
+        <strong id="totalProfit">--</strong>
+        <small>含已记录收益与今日估算</small>
+      </div>
+    </section>
+
+    <section id="fileTools" class="file-tools" aria-label="数据工具">
+      <div class="actions" style="justify-content:flex-start">
+        <button id="exportBtn" class="secondary">导出 JSON</button>
+        <button id="importBtn" class="secondary">导入 JSON</button>
+        <button id="clearBtn" class="danger">清空本机数据</button>
+      </div>
+      <input id="importFile" type="file" accept="application/json,.json" style="display:none">
+    </section>
+
+    <section class="toolbar">
+      <h2>基金列表</h2>
+      <span class="tag" id="fundLibraryState">基金代码库加载中</span>
+    </section>
+
+    <section id="fundList" class="fund-list"></section>
+  </main>
+
+  <section id="fundModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <h2 id="modalTitle">添加基金</h2>
+        <button id="closeModalBtn" class="secondary icon" title="关闭">x</button>
+      </div>
+      <form id="fundForm">
+        <div class="form-grid">
+          <label class="full">
+            基金名称或代码
+            <input id="fundSearch" autocomplete="off" placeholder="例如：161725 或 白酒">
+          </label>
+          <div id="suggestions" class="suggestions full"></div>
+          <label>
+            基金代码
+            <input id="fundCode" inputmode="numeric" maxlength="6" placeholder="6 位基金代码" required>
+          </label>
+          <label>
+            基金名称
+            <input id="fundName" placeholder="选择候选后自动填入" required>
+          </label>
+          <label class="full">
+            关联板块
+            <input id="boardSearch" autocomplete="off" placeholder="例如：白酒、半导体、医药">
+          </label>
+          <div id="boardSuggestions" class="suggestions full"></div>
+          <label>
+            板块代码
+            <input id="boardCode" placeholder="选择板块后自动填入" required>
+          </label>
+          <label>
+            板块名称
+            <input id="boardName" placeholder="选择板块后自动填入" required>
+          </label>
+          <label>
+            起始累计投入本金
+            <input id="initialPrincipal" type="number" step="0.01" placeholder="0.00" required>
+          </label>
+          <label>
+            起始总收益
+            <input id="initialProfit" type="number" step="0.01" placeholder="可为负数" required>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelModalBtn" class="secondary">取消</button>
+          <button type="submit">保存基金</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const STORAGE_KEY = "fund_visualizer_multi_v1";
+      const DEFAULT_STATE = { funds: [], entries: {} };
+      const state = loadState();
+      const marketCache = new Map();
+      let fundLibrary = [];
+      let editingFundId = null;
+      let selectedSuggestion = null;
+      let selectedBoard = null;
+      let toastTimer = null;
+
+      const els = {
+        totalPrincipal: document.getElementById("totalPrincipal"),
+        totalMarketValue: document.getElementById("totalMarketValue"),
+        totalDayProfit: document.getElementById("totalDayProfit"),
+        totalProfit: document.getElementById("totalProfit"),
+        fundCount: document.getElementById("fundCount"),
+        lastRefresh: document.getElementById("lastRefresh"),
+        fundList: document.getElementById("fundList"),
+        addFundBtn: document.getElementById("addFundBtn"),
+        refreshBtn: document.getElementById("refreshBtn"),
+        toolsBtn: document.getElementById("toolsBtn"),
+        fileTools: document.getElementById("fileTools"),
+        exportBtn: document.getElementById("exportBtn"),
+        importBtn: document.getElementById("importBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        importFile: document.getElementById("importFile"),
+        fundLibraryState: document.getElementById("fundLibraryState"),
+        modal: document.getElementById("fundModal"),
+        modalTitle: document.getElementById("modalTitle"),
+        closeModalBtn: document.getElementById("closeModalBtn"),
+        cancelModalBtn: document.getElementById("cancelModalBtn"),
+        fundForm: document.getElementById("fundForm"),
+        fundSearch: document.getElementById("fundSearch"),
+        suggestions: document.getElementById("suggestions"),
+        boardSearch: document.getElementById("boardSearch"),
+        boardSuggestions: document.getElementById("boardSuggestions"),
+        fundCode: document.getElementById("fundCode"),
+        fundName: document.getElementById("fundName"),
+        boardCode: document.getElementById("boardCode"),
+        boardName: document.getElementById("boardName"),
+        initialPrincipal: document.getElementById("initialPrincipal"),
+        initialProfit: document.getElementById("initialProfit"),
+        toast: document.getElementById("toast")
+      };
+
+      bindEvents();
+      render();
+      loadFundLibrary();
+      refreshAll();
+
+      function bindEvents() {
+        els.addFundBtn.addEventListener("click", () => openModal());
+        els.refreshBtn.addEventListener("click", () => refreshAll(true));
+        els.toolsBtn.addEventListener("click", () => els.fileTools.classList.toggle("open"));
+        els.closeModalBtn.addEventListener("click", closeModal);
+        els.cancelModalBtn.addEventListener("click", closeModal);
+        els.modal.addEventListener("click", event => {
+          if (event.target === els.modal) closeModal();
+        });
+        document.addEventListener("keydown", event => {
+          if (event.key === "Escape" && els.modal.classList.contains("open")) closeModal();
+        });
+        els.fundForm.addEventListener("submit", saveFundFromForm);
+        els.fundSearch.addEventListener("input", updateSuggestions);
+        els.boardSearch.addEventListener("input", updateBoardSuggestions);
+        els.fundCode.addEventListener("input", () => {
+          els.fundCode.value = els.fundCode.value.replace(/\D/g, "").slice(0, 6);
+          syncByCode(els.fundCode.value);
+        });
+        els.exportBtn.addEventListener("click", exportData);
+        els.importBtn.addEventListener("click", () => els.importFile.click());
+        els.importFile.addEventListener("change", importData);
+        els.clearBtn.addEventListener("click", clearData);
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return structuredClone(DEFAULT_STATE);
+          const parsed = JSON.parse(raw);
+          return {
+            funds: Array.isArray(parsed.funds) ? parsed.funds : [],
+            entries: parsed.entries && typeof parsed.entries === "object" ? parsed.entries : {}
+          };
+        } catch (error) {
+          console.warn("读取本地数据失败", error);
+          return structuredClone(DEFAULT_STATE);
+        }
+      }
+
+      function saveState() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function openModal(fund) {
+        editingFundId = fund ? fund.id : null;
+        selectedSuggestion = null;
+        selectedBoard = null;
+        els.modalTitle.textContent = fund ? "编辑基金" : "添加基金";
+        els.fundForm.reset();
+        els.suggestions.innerHTML = "";
+        els.boardSuggestions.innerHTML = "";
+        if (fund) {
+          els.fundSearch.value = `${fund.code} ${fund.name}`;
+          els.fundCode.value = fund.code;
+          els.fundName.value = fund.name;
+          if (fund.boardCode && fund.boardName) {
+            selectedBoard = {
+              code: fund.boardCode,
+              name: fund.boardName,
+              secId: fund.boardSecId || `90.${fund.boardCode}`
+            };
+            els.boardSearch.value = `${fund.boardName} ${fund.boardCode}`;
+            els.boardCode.value = fund.boardCode;
+            els.boardName.value = fund.boardName;
+          } else {
+            showToast("这只基金还没有关联板块，请编辑补选后保存。");
+          }
+          els.initialPrincipal.value = String(fund.initialPrincipal ?? 0);
+          els.initialProfit.value = String(fund.initialProfit ?? 0);
+        }
+        els.modal.classList.add("open");
+        setTimeout(() => els.fundSearch.focus(), 20);
+      }
+
+      function closeModal() {
+        els.modal.classList.remove("open");
+        editingFundId = null;
+        selectedSuggestion = null;
+        selectedBoard = null;
+      }
+
+      function saveFundFromForm(event) {
+        event.preventDefault();
+        const code = els.fundCode.value.trim();
+        const name = els.fundName.value.trim();
+        const boardCode = els.boardCode.value.trim();
+        const boardName = els.boardName.value.trim();
+        const initialPrincipal = toNumber(els.initialPrincipal.value);
+        const initialProfit = toNumber(els.initialProfit.value);
+
+        if (!/^\d{6}$/.test(code)) {
+          showToast("请输入 6 位基金代码。");
+          return;
+        }
+        if (!name) {
+          showToast("请输入基金名称。");
+          return;
+        }
+        if (!/^BK\d{4}$/.test(boardCode) || !boardName) {
+          showToast("请选择关联板块后再保存。");
+          return;
+        }
+        if (!Number.isFinite(initialPrincipal) || !Number.isFinite(initialProfit)) {
+          showToast("起始本金和起始收益必须是数字。");
+          return;
+        }
+
+        const duplicate = state.funds.find(fund => fund.code === code && fund.id !== editingFundId);
+        if (duplicate) {
+          showToast("这只基金已经在列表中。");
+          return;
+        }
+
+        if (editingFundId) {
+          const fund = state.funds.find(item => item.id === editingFundId);
+          if (fund) {
+            fund.code = code;
+            fund.name = name;
+            fund.boardCode = boardCode;
+            fund.boardName = boardName;
+            fund.boardSecId = selectedBoard && selectedBoard.code === boardCode
+              ? selectedBoard.secId
+              : `90.${boardCode}`;
+            fund.initialPrincipal = roundMoney(initialPrincipal);
+            fund.initialProfit = roundMoney(initialProfit);
+          }
+        } else {
+          const id = `fund_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+          state.funds.push({
+            id,
+            code,
+            name,
+            boardCode,
+            boardName,
+            boardSecId: selectedBoard && selectedBoard.code === boardCode ? selectedBoard.secId : `90.${boardCode}`,
+            initialPrincipal: roundMoney(initialPrincipal),
+            initialProfit: roundMoney(initialProfit),
+            createdAt: today()
+          });
+          state.entries[id] = [];
+        }
+
+        saveState();
+        closeModal();
+        render();
+        refreshAll(true);
+      }
+
+      function updateSuggestions() {
+        const query = els.fundSearch.value.trim().toLowerCase();
+        selectedSuggestion = null;
+        els.suggestions.innerHTML = "";
+
+        if (!query) return;
+        const matches = findFundMatches(query).slice(0, 8);
+        if (!matches.length) {
+          if (/^\d{1,6}$/.test(query)) {
+            els.fundCode.value = query.padStart(6, "0").slice(-6);
+            syncByCode(els.fundCode.value);
+          }
+          return;
+        }
+
+        matches.forEach(match => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "suggestion";
+          button.innerHTML = `<strong>${escapeHtml(match.code)}</strong><span>${escapeHtml(match.name)}</span><small>${escapeHtml(match.type || "")}</small>`;
+          button.addEventListener("click", () => selectSuggestion(match));
+          els.suggestions.appendChild(button);
+        });
+      }
+
+      function selectSuggestion(match) {
+        selectedSuggestion = match;
+        els.fundSearch.value = `${match.code} ${match.name}`;
+        els.fundCode.value = match.code;
+        els.fundName.value = match.name;
+        els.suggestions.innerHTML = "";
+        recommendBoardForFund(match.name);
+      }
+
+      function syncByCode(code) {
+        if (!/^\d{6}$/.test(code) || !fundLibrary.length) return;
+        const found = fundLibrary.find(item => item.code === code);
+        if (found) {
+          els.fundName.value = found.name;
+          selectedSuggestion = found;
+          recommendBoardForFund(found.name);
+        }
+      }
+
+      function findFundMatches(query) {
+        if (!fundLibrary.length) return [];
+        const normalized = query.replace(/\s+/g, "");
+        return fundLibrary.filter(item => {
+          return item.code.includes(normalized) ||
+            item.name.toLowerCase().includes(query) ||
+            item.short.toLowerCase().includes(query) ||
+            item.pinyin.toLowerCase().includes(query);
+        });
+      }
+
+      async function updateBoardSuggestions() {
+        const query = els.boardSearch.value.trim();
+        selectedBoard = null;
+        els.boardCode.value = "";
+        els.boardName.value = "";
+        els.boardSuggestions.innerHTML = "";
+        if (!query) return;
+
+        try {
+          const matches = await searchBoards(query);
+          renderBoardSuggestions(matches);
+          if (!matches.length) showToast("没有找到匹配的板块，请换个关键词。");
+        } catch (error) {
+          console.warn("板块搜索失败", error);
+          showToast("板块搜索失败，请稍后再试。");
+        }
+      }
+
+      async function recommendBoardForFund(fundName) {
+        if (selectedBoard || els.boardCode.value.trim()) return;
+        const queries = getBoardQueries(fundName);
+        for (const query of queries) {
+          try {
+            const matches = await searchBoards(query);
+            if (matches.length) {
+              renderBoardSuggestions(matches);
+              selectBoard(matches[0], true);
+              return;
+            }
+          } catch (error) {
+            console.warn("板块推荐失败", query, error);
+          }
+        }
+      }
+
+      function renderBoardSuggestions(matches) {
+        els.boardSuggestions.innerHTML = "";
+        matches.slice(0, 8).forEach(match => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "suggestion";
+          button.innerHTML = `<strong>${escapeHtml(match.code)}</strong><span>${escapeHtml(match.name)}</span><small>板块</small>`;
+          button.addEventListener("click", () => selectBoard(match, false));
+          els.boardSuggestions.appendChild(button);
+        });
+      }
+
+      function selectBoard(match, recommended) {
+        selectedBoard = match;
+        els.boardSearch.value = `${match.name} ${match.code}`;
+        els.boardCode.value = match.code;
+        els.boardName.value = match.name;
+        if (!recommended) els.boardSuggestions.innerHTML = "";
+      }
+
+      async function searchBoards(query) {
+        const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(query)}&type=14`;
+        const response = await loadJsonp(url);
+        const list = response && response.QuotationCodeTable && Array.isArray(response.QuotationCodeTable.Data)
+          ? response.QuotationCodeTable.Data
+          : [];
+        return list
+          .filter(item => item && item.Classify === "BK" && item.Code && item.Name)
+          .map(item => ({
+            code: String(item.Code),
+            name: String(item.Name),
+            secId: item.QuoteID ? String(item.QuoteID) : `${item.MktNum || "90"}.${item.Code}`
+          }));
+      }
+
+      function getBoardQueries(fundName) {
+        const name = String(fundName || "");
+        const known = [
+          "白酒", "半导体", "芯片", "医药", "医疗", "新能源", "光伏", "军工", "证券", "银行",
+          "保险", "地产", "房地产", "煤炭", "钢铁", "有色", "稀土", "化工", "通信", "传媒",
+          "消费", "食品饮料", "家电", "汽车", "电池", "人工智能", "机器人", "计算机", "软件"
+        ];
+        const hits = known.filter(keyword => name.includes(keyword));
+        const cleaned = name
+          .replace(/[A-Z]$/i, "")
+          .replace(/\(.+?\)/g, "")
+          .replace(/（.+?）/g, "")
+          .replace(/(指数|联接|混合|股票|债券|基金|增强|主题|行业|中证|沪深|上证|创业板|LOF|ETF)/gi, " ")
+          .trim();
+        return [...new Set([...hits, cleaned].filter(Boolean))];
+      }
+
+      async function loadFundLibrary() {
+        try {
+          await loadScript("https://fund.eastmoney.com/js/fundcode_search.js", "fund-library-script");
+          const raw = Array.isArray(window.r) ? window.r : [];
+          fundLibrary = raw.map(item => ({
+            code: String(item[0] || ""),
+            short: String(item[1] || ""),
+            name: String(item[2] || ""),
+            type: String(item[3] || ""),
+            pinyin: String(item[4] || "")
+          })).filter(item => item.code && item.name);
+          els.fundLibraryState.textContent = `基金代码库 ${fundLibrary.length} 条`;
+        } catch (error) {
+          console.warn("基金代码库加载失败", error);
+          els.fundLibraryState.textContent = "基金代码库加载失败，可手动输入";
+        }
+      }
+
+      async function refreshAll(manual) {
+        if (!state.funds.length) {
+          render();
+          return;
+        }
+        els.refreshBtn.disabled = true;
+        els.refreshBtn.textContent = "刷新中";
+        for (const fund of state.funds) {
+          let realtime = null;
+          let history = [];
+          let board = null;
+          let error = "";
+          try {
+            realtime = await fetchRealtime(fund.code);
+          } catch (error) {
+            console.warn("基金估值加载失败", fund.code, error);
+          }
+          try {
+            if (fund.boardSecId || fund.boardCode) {
+              board = await fetchBoardRealtime(fund);
+            } else {
+              error = "请编辑补选关联板块";
+            }
+          } catch (error) {
+            console.warn("板块行情加载失败", fund.code, error);
+            error = "板块行情加载失败";
+          }
+          try {
+            history = await fetchHistory(fund.code);
+          } catch (error) {
+            console.warn("历史净值加载失败", fund.code, error);
+          }
+          marketCache.set(fund.id, { realtime, board, history, error });
+          render();
+        }
+        els.refreshBtn.disabled = false;
+        els.refreshBtn.textContent = "刷新行情";
+        els.lastRefresh.textContent = `刷新于 ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`;
+        if (manual) showToast("行情已刷新。");
+      }
+
+      function fetchRealtime(code) {
+        return new Promise((resolve, reject) => {
+          const previous = window.jsonpgz;
+          const callbackName = "jsonpgz";
+          let done = false;
+          const cleanup = () => {
+            window[callbackName] = previous;
+          };
+
+          window[callbackName] = data => {
+            done = true;
+            cleanup();
+            resolve({
+              code: data.fundcode,
+              name: data.name,
+              navDate: data.jzrq,
+              unitNet: toNumber(data.dwjz),
+              estimatedNet: toNumber(data.gsz),
+              pct: toNumber(data.gszzl),
+              time: data.gztime || ""
+            });
+          };
+
+          const url = `https://fundgz.1234567.com.cn/js/${encodeURIComponent(code)}.js?rt=${Date.now()}`;
+          loadScript(url)
+            .then(() => {
+              setTimeout(() => {
+                if (!done) {
+                  cleanup();
+                  reject(new Error("实时估值没有返回数据"));
+                }
+              }, 0);
+            })
+            .catch(error => {
+              cleanup();
+              reject(error);
+            });
+        });
+      }
+
+      async function fetchBoardRealtime(fund) {
+        const secId = fund.boardSecId || `90.${fund.boardCode}`;
+        const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secId)}&fields=f57,f58,f86,f169,f170`;
+        const response = await loadJsonp(url);
+        if (!response || response.rc !== 0 || !response.data) {
+          throw new Error("板块行情没有返回数据");
+        }
+        const data = response.data;
+        const rawPct = toNumber(data.f170);
+        if (!Number.isFinite(rawPct)) {
+          throw new Error("板块涨幅无效");
+        }
+        return {
+          code: String(data.f57 || fund.boardCode || ""),
+          name: String(data.f58 || fund.boardName || ""),
+          secId,
+          pct: rawPct / 100,
+          change: toNumber(data.f169) / 100,
+          time: formatMarketTime(data.f86)
+        };
+      }
+
+      async function fetchHistory(code) {
+        const unique = `fund-history-${code}-${Date.now()}`;
+        await loadScript(`https://fund.eastmoney.com/pingzhongdata/${encodeURIComponent(code)}.js?rt=${Date.now()}`, unique);
+        const trend = Array.isArray(window.Data_netWorthTrend) ? window.Data_netWorthTrend : [];
+        return trend.map(item => ({
+          date: formatDate(new Date(item.x)),
+          net: toNumber(item.y),
+          pct: toNumber(item.equityReturn)
+        })).filter(item => Number.isFinite(item.pct)).slice(-8);
+      }
+
+      function loadScript(src, id) {
+        return new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = src;
+          script.async = true;
+          if (id) script.id = id;
+          script.onload = () => {
+            if (!id || id.startsWith("fund-history-")) script.remove();
+            resolve();
+          };
+          script.onerror = () => {
+            script.remove();
+            reject(new Error(`脚本加载失败：${src}`));
+          };
+          document.head.appendChild(script);
+        });
+      }
+
+      function loadJsonp(url) {
+        return new Promise((resolve, reject) => {
+          const callbackName = `fundVizJsonp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+          const separator = url.includes("?") ? "&" : "?";
+          const script = document.createElement("script");
+          let settled = false;
+          const cleanup = () => {
+            delete window[callbackName];
+            script.remove();
+          };
+
+          window[callbackName] = data => {
+            settled = true;
+            cleanup();
+            resolve(data);
+          };
+
+          script.src = `${url}${separator}cb=${callbackName}&_=${Date.now()}`;
+          script.async = true;
+          script.onerror = () => {
+            if (!settled) {
+              cleanup();
+              reject(new Error(`JSONP 加载失败：${url}`));
+            }
+          };
+          document.head.appendChild(script);
+        });
+      }
+
+      function render() {
+        const models = state.funds.map(buildFundModel);
+        renderSummary(models);
+        renderFunds(models);
+      }
+
+      function buildFundModel(fund) {
+        const entries = getEntries(fund.id);
+        const market = marketCache.get(fund.id) || {};
+        const realtime = market.realtime || null;
+        const board = market.board || null;
+        const history = prepareFiveDayHistory(market.history || [], board);
+        const pct = board && Number.isFinite(board.pct) ? board.pct : null;
+        const todayEntry = entries.find(entry => entry.date === today());
+        const savedDayProfitSum = entries.reduce((sum, entry) => {
+          if (entry.date === today()) return sum;
+          return sum + toNumber(entry.dayProfit || 0);
+        }, 0);
+        const cumulativePrincipal = roundMoney(fund.initialPrincipal + entries.reduce((sum, entry) => {
+          return sum + toNumber(entry.amount || 0);
+        }, 0));
+        const liveDayProfit = Number.isFinite(pct) ? roundMoney(cumulativePrincipal * pct / 100) : 0;
+        const totalProfit = roundMoney(fund.initialProfit + savedDayProfitSum + liveDayProfit);
+        const marketValue = roundMoney(cumulativePrincipal + totalProfit);
+        const advice = getAdvice(pct, history);
+
+        return {
+          fund,
+          entries,
+          realtime,
+          board,
+          history,
+          pct,
+          cumulativePrincipal,
+          liveDayProfit,
+          totalProfit,
+          marketValue,
+          todayAmount: todayEntry ? todayEntry.amount : 0,
+          error: market.error || "",
+          advice
+        };
+      }
+
+      function renderSummary(models) {
+        const totalPrincipal = models.reduce((sum, item) => sum + item.cumulativePrincipal, 0);
+        const totalMarketValue = models.reduce((sum, item) => sum + item.marketValue, 0);
+        const totalDayProfit = models.reduce((sum, item) => sum + item.liveDayProfit, 0);
+        const totalProfit = models.reduce((sum, item) => sum + item.totalProfit, 0);
+
+        els.totalPrincipal.textContent = money(totalPrincipal);
+        els.totalMarketValue.textContent = money(totalMarketValue);
+        els.totalDayProfit.textContent = signedMoney(totalDayProfit);
+        els.totalDayProfit.className = valueClass(totalDayProfit);
+        els.totalProfit.textContent = signedMoney(totalProfit);
+        els.totalProfit.className = valueClass(totalProfit);
+        els.fundCount.textContent = `${models.length} 只基金`;
+      }
+
+      function renderFunds(models) {
+        els.fundList.innerHTML = "";
+        if (!models.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.innerHTML = "<strong>还没有基金</strong>点击“添加基金”，录入第一只基金的起始本金和起始总收益。";
+          els.fundList.appendChild(empty);
+          return;
+        }
+
+        models.forEach(model => {
+          const card = document.createElement("article");
+          card.className = "fund-card";
+          card.dataset.fundId = model.fund.id;
+          card.innerHTML = fundCardTemplate(model);
+          els.fundList.appendChild(card);
+        });
+
+        els.fundList.querySelectorAll("[data-action]").forEach(button => {
+          button.addEventListener("click", handleFundAction);
+        });
+        els.fundList.querySelectorAll("[data-entry-input]").forEach(input => {
+          input.addEventListener("keydown", event => {
+            if (event.key === "Enter") {
+              const card = event.target.closest("[data-fund-id]");
+              saveTodayEntry(card.dataset.fundId);
+            }
+          });
+        });
+      }
+
+      function fundCardTemplate(model) {
+        const fund = model.fund;
+        const realtime = model.realtime;
+        const board = model.board;
+        const pctText = model.pct === null ? "--" : `${formatSigned(model.pct)}%`;
+        const netText = realtime && Number.isFinite(realtime.estimatedNet) ? realtime.estimatedNet.toFixed(4) : "--";
+        const unitText = realtime && Number.isFinite(realtime.unitNet) ? realtime.unitNet.toFixed(4) : "--";
+        const boardName = board && board.name ? board.name : (fund.boardName || "未配置板块");
+        const boardCode = board && board.code ? board.code : (fund.boardCode || "--");
+        const timeText = board && board.time ? board.time : "等待板块行情";
+        const historyHtml = model.history.length ? model.history.map(item => {
+          const label = item.estimated ? `${item.date} 估` : item.date;
+          return `<div class="history-row"><span>${escapeHtml(label)}</span><strong class="${valueClass(item.pct)}">${formatSigned(item.pct)}%</strong></div>`;
+        }).join("") : "<div class=\"history-row\"><span>暂无历史数据</span><strong>--</strong></div>";
+
+        return `
+          <div class="fund-head">
+            <div class="fund-title">
+              <h3>${escapeHtml(fund.name)}</h3>
+              <div class="tag-row">
+                <span class="tag">${escapeHtml(fund.code)}</span>
+                <span class="tag">${escapeHtml(boardName)} / ${escapeHtml(boardCode)}</span>
+                <span>起始：本金 ${money(fund.initialPrincipal)} / 收益 ${signedMoney(fund.initialProfit)}</span>
+                ${model.error ? `<span class="tag">${escapeHtml(model.error)}</span>` : ""}
+              </div>
+            </div>
+            <div class="card-actions">
+              <button class="secondary icon" data-action="edit" data-fund-id="${fund.id}" title="编辑">✎</button>
+              <button class="danger icon" data-action="delete" data-fund-id="${fund.id}" title="删除">×</button>
+            </div>
+          </div>
+
+          <div class="card-grid">
+            <div class="mini-metric"><span>实时估值</span><strong>${netText}</strong></div>
+            <div class="mini-metric"><span>上一单位净值</span><strong>${unitText}</strong></div>
+            <div class="mini-metric"><span>关联板块涨幅</span><strong class="${valueClass(model.pct)}">${pctText}</strong></div>
+            <div class="mini-metric"><span>累计本金</span><strong>${money(model.cumulativePrincipal)}</strong></div>
+            <div class="mini-metric"><span>今日估算收益</span><strong class="${valueClass(model.liveDayProfit)}">${signedMoney(model.liveDayProfit)}</strong></div>
+            <div class="mini-metric"><span>累计总收益</span><strong class="${valueClass(model.totalProfit)}">${signedMoney(model.totalProfit)}</strong></div>
+          </div>
+
+          <div class="entry-row">
+            <label>
+              今天新增买入金额
+              <input data-entry-input="${fund.id}" type="number" step="0.01" value="${escapeHtml(String(model.todayAmount || 0))}">
+            </label>
+            <button data-action="save-entry" data-fund-id="${fund.id}">保存今日投入</button>
+            <span class="tag">${escapeHtml(timeText)}</span>
+          </div>
+
+          <div class="chart-wrap">
+            <div class="chart-box">
+              <div class="chart-title">
+                <span>近 5 个交易日涨幅</span>
+                <span>${model.history.length ? "今日为板块实时" : "等待数据"}</span>
+              </div>
+              ${renderChart(model.history)}
+            </div>
+            <div class="history-list">${historyHtml}</div>
+          </div>
+
+          <div class="advice ${model.advice.tone}">
+            <strong>${escapeHtml(model.advice.title)}</strong><br>
+            ${escapeHtml(model.advice.body)}
+          </div>
+        `;
+      }
+
+      function handleFundAction(event) {
+        const action = event.currentTarget.dataset.action;
+        const fundId = event.currentTarget.dataset.fundId;
+        const fund = state.funds.find(item => item.id === fundId);
+        if (!fund) return;
+
+        if (action === "edit") {
+          openModal(fund);
+        }
+        if (action === "delete") {
+          if (confirm(`删除 ${fund.name}？该基金的本地记录也会删除。`)) {
+            state.funds = state.funds.filter(item => item.id !== fundId);
+            delete state.entries[fundId];
+            marketCache.delete(fundId);
+            saveState();
+            render();
+            showToast("基金已删除。");
+          }
+        }
+        if (action === "save-entry") {
+          saveTodayEntry(fundId);
+        }
+      }
+
+      function saveTodayEntry(fundId) {
+        const input = document.querySelector(`[data-entry-input="${CSS.escape(fundId)}"]`);
+        const fund = state.funds.find(item => item.id === fundId);
+        if (!input || !fund) return;
+
+        const amount = toNumber(input.value);
+        if (!Number.isFinite(amount)) {
+          showToast("今日投入金额必须是数字，可以为 0 或负数。");
+          return;
+        }
+
+        const model = buildFundModel(fund);
+        const entries = getEntries(fundId);
+        const existingIndex = entries.findIndex(entry => entry.date === today());
+        const principalBeforeToday = fund.initialPrincipal + entries.reduce((sum, entry) => {
+          return sum + (entry.date === today() ? 0 : toNumber(entry.amount || 0));
+        }, 0);
+        const principalAfterToday = roundMoney(principalBeforeToday + amount);
+        if (!Number.isFinite(model.pct)) {
+          showToast("请先补选关联板块并刷新行情，再保存今日投入。");
+          return;
+        }
+        const pct = model.pct;
+        const dayProfit = roundMoney(principalAfterToday * pct / 100);
+        const entry = {
+          date: today(),
+          amount: roundMoney(amount),
+          pct,
+          dayProfit,
+          estimateTime: model.board && model.board.time ? model.board.time : "",
+          savedAt: new Date().toISOString()
+        };
+
+        if (existingIndex >= 0) entries[existingIndex] = entry;
+        else entries.push(entry);
+        entries.sort((a, b) => a.date.localeCompare(b.date));
+        state.entries[fundId] = entries;
+        saveState();
+        render();
+        showToast(`${fund.name} 今日投入已保存。`);
+      }
+
+      function prepareFiveDayHistory(history, board) {
+        const points = history.slice(-5);
+        if (board && board.time && Number.isFinite(board.pct)) {
+          const liveDate = board.time.slice(0, 10);
+          const last = points[points.length - 1];
+          if (!last || last.date !== liveDate) {
+            points.push({
+              date: liveDate || today(),
+              net: null,
+              pct: board.pct,
+              estimated: true
+            });
+            while (points.length > 5) points.shift();
+          }
+        }
+        return points;
+      }
+
+      function renderChart(points) {
+        if (!points.length) {
+          return "<svg class=\"chart\" viewBox=\"0 0 480 128\" role=\"img\" aria-label=\"暂无图表\"><text x=\"240\" y=\"68\" text-anchor=\"middle\" fill=\"#6b7280\" font-size=\"15\">暂无数据</text></svg>";
+        }
+        const width = 480;
+        const height = 128;
+        const padX = 28;
+        const zeroY = 64;
+        const maxAbs = Math.max(1, ...points.map(item => Math.abs(item.pct)));
+        const slot = (width - padX * 2) / points.length;
+        const barW = Math.min(46, slot * 0.48);
+        const bars = points.map((point, index) => {
+          const center = padX + slot * index + slot / 2;
+          const magnitude = Math.max(2, Math.abs(point.pct) / maxAbs * 48);
+          const y = point.pct >= 0 ? zeroY - magnitude : zeroY;
+          const color = point.pct >= 0 ? "#d92d20" : "#12805c";
+          const labelY = point.pct >= 0 ? y - 8 : y + magnitude + 16;
+          const dateLabel = point.date.slice(5);
+          return `
+            <rect x="${center - barW / 2}" y="${y}" width="${barW}" height="${magnitude}" rx="5" fill="${color}" opacity="0.88"></rect>
+            <text x="${center}" y="${labelY}" text-anchor="middle" fill="${color}" font-size="12" font-weight="700">${formatSigned(point.pct)}%</text>
+            <text x="${center}" y="121" text-anchor="middle" fill="#6b7280" font-size="11">${escapeHtml(dateLabel)}</text>
+          `;
+        }).join("");
+        return `
+          <svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="近 5 日涨幅图">
+            <line x1="18" y1="${zeroY}" x2="${width - 18}" y2="${zeroY}" stroke="#d9e0ea" stroke-width="1"></line>
+            ${bars}
+          </svg>
+        `;
+      }
+
+      function getAdvice(pct, history) {
+        if (!Number.isFinite(pct)) {
+          return {
+            title: "观望",
+            body: "当前没有拿到关联板块实时涨幅，先不要根据本页做加减仓动作，等行情刷新或补选板块后再判断。",
+            tone: "warn"
+          };
+        }
+        const recent = history.map(item => item.pct).filter(Number.isFinite);
+        const fiveSum = recent.reduce((sum, item) => sum + item, 0);
+        const volatility = recent.length ? recent.reduce((sum, item) => sum + Math.abs(item), 0) / recent.length : Math.abs(pct);
+        const riskNote = volatility >= 2.5 ? "近期波动偏大，单次操作金额建议更小。" : "保持分批和纪律，不用一次做满。";
+
+        if (pct >= 2 || fiveSum >= 5) {
+          return {
+            title: "分批减仓 / 不追高",
+            body: `短期涨幅较强，稳健策略优先考虑止盈或暂停加仓。${riskNote}`,
+            tone: "reduce"
+          };
+        }
+        if (pct <= -2 || fiveSum <= -5) {
+          return {
+            title: "小额分批加仓",
+            body: `短期回撤较明显，如果这只基金仍符合你的长期配置，可以只用计划内小额资金分批买入。${riskNote}`,
+            tone: "warn"
+          };
+        }
+        if (pct <= -0.8) {
+          return {
+            title: "观望或小额定投",
+            body: `今天关联板块偏弱，稳健做法是控制节奏，只执行原本计划内的投入。${riskNote}`,
+            tone: "warn"
+          };
+        }
+        if (pct >= 0.8) {
+          return {
+            title: "持有为主",
+            body: `今天关联板块偏强，不急于追高；已有仓位可以继续观察，新增资金分批处理。${riskNote}`,
+            tone: ""
+          };
+        }
+        return {
+          title: "持有 / 按计划投入",
+          body: `短期波动不大，稳健策略可以按原计划录入投入，避免被单日涨跌牵着走。${riskNote}`,
+          tone: ""
+        };
+      }
+
+      function exportData() {
+        const payload = {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          data: state
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `基金收益记录-${today()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      function importData(event) {
+        const file = event.target.files && event.target.files[0];
+        event.target.value = "";
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result || "{}"));
+            const data = parsed.data || parsed;
+            if (!Array.isArray(data.funds) || !data.entries || typeof data.entries !== "object") {
+              throw new Error("文件格式不正确");
+            }
+            state.funds = data.funds;
+            state.entries = data.entries;
+            saveState();
+            marketCache.clear();
+            render();
+            refreshAll(true);
+            showToast("数据已导入。");
+          } catch (error) {
+            showToast(`导入失败：${error.message}`);
+          }
+        };
+        reader.readAsText(file);
+      }
+
+      function clearData() {
+        if (!confirm("清空本机保存的所有基金和录入记录？")) return;
+        state.funds = [];
+        state.entries = {};
+        marketCache.clear();
+        saveState();
+        render();
+        showToast("本机数据已清空。");
+      }
+
+      function getEntries(fundId) {
+        if (!Array.isArray(state.entries[fundId])) state.entries[fundId] = [];
+        return state.entries[fundId];
+      }
+
+      function today() {
+        return formatDate(new Date());
+      }
+
+      function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function formatMarketTime(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number) || number <= 0) return "";
+        const date = new Date(number > 1000000000000 ? number : number * 1000);
+        if (Number.isNaN(date.getTime())) return "";
+        const time = date.toLocaleTimeString("zh-CN", { hour12: false });
+        return `${formatDate(date)} ${time}`;
+      }
+
+      function toNumber(value) {
+        if (value === null || value === undefined || value === "") return 0;
+        const number = Number(String(value).replace(/,/g, ""));
+        return Number.isFinite(number) ? number : NaN;
+      }
+
+      function roundMoney(value) {
+        return Math.round((Number(value) || 0) * 100) / 100;
+      }
+
+      function money(value) {
+        return new Intl.NumberFormat("zh-CN", {
+          style: "currency",
+          currency: "CNY",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(roundMoney(value));
+      }
+
+      function signedMoney(value) {
+        const rounded = roundMoney(value);
+        const prefix = rounded > 0 ? "+" : "";
+        return `${prefix}${money(rounded)}`;
+      }
+
+      function formatSigned(value) {
+        const number = Number(value) || 0;
+        return `${number > 0 ? "+" : ""}${number.toFixed(2)}`;
+      }
+
+      function valueClass(value) {
+        if (!Number.isFinite(value) || value === 0) return "neutral";
+        return value > 0 ? "positive" : "negative";
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        els.toast.textContent = message;
+        els.toast.classList.add("show");
+        toastTimer = setTimeout(() => {
+          els.toast.classList.remove("show");
+        }, 2800);
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+    })();
+  </script>
+</body>
+</html>
