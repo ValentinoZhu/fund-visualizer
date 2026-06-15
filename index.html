@@ -218,11 +218,38 @@
       gap: 14px;
     }
 
+    .fund-card.collapsed {
+      gap: 0;
+    }
+
+    .fund-main-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: start;
+    }
+
     .fund-head {
       display: flex;
-      justify-content: space-between;
       gap: 14px;
       align-items: flex-start;
+      min-width: 0;
+    }
+
+    .collapse-toggle {
+      width: 34px;
+      min-width: 34px;
+      height: 34px;
+      min-height: 34px;
+      padding: 0;
+      border-color: var(--line);
+      background: #fff;
+      color: var(--text);
+      flex: 0 0 auto;
+    }
+
+    .collapse-toggle:hover {
+      background: var(--panel-soft);
     }
 
     .fund-title {
@@ -261,6 +288,47 @@
       display: flex;
       gap: 8px;
       flex: 0 0 auto;
+    }
+
+    .fund-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(92px, 1fr));
+      gap: 8px;
+      min-width: min(420px, 42vw);
+    }
+
+    .quick-metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel-soft);
+      padding: 8px 10px;
+      min-height: 54px;
+    }
+
+    .quick-metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      white-space: nowrap;
+    }
+
+    .quick-metric strong {
+      display: block;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .fund-details {
+      display: grid;
+      gap: 14px;
+    }
+
+    .fund-card.collapsed .fund-details {
+      display: none;
     }
 
     .card-grid {
@@ -553,13 +621,26 @@
       }
 
       .topbar,
-      .fund-head {
+      .fund-main-row {
         display: grid;
       }
 
       .actions,
       .card-actions {
         justify-content: start;
+      }
+
+      .fund-summary-strip {
+        min-width: 0;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .quick-metric {
+        padding: 7px;
+      }
+
+      .quick-metric strong {
+        font-size: 13px;
       }
 
       .summary-grid,
@@ -619,6 +700,7 @@
         <button id="exportBtn" class="secondary">导出 JSON</button>
         <button id="importBtn" class="secondary">导入 JSON</button>
         <button id="clearBtn" class="danger">清空本机数据</button>
+        <span class="tag" id="saveStateInfo">尚未保存</span>
       </div>
       <input id="importFile" type="file" accept="application/json,.json" style="display:none">
     </section>
@@ -652,19 +734,6 @@
             基金名称
             <input id="fundName" placeholder="选择候选后自动填入" required>
           </label>
-          <label class="full">
-            关联板块
-            <input id="boardSearch" autocomplete="off" placeholder="例如：白酒、半导体、医药">
-          </label>
-          <div id="boardSuggestions" class="suggestions full"></div>
-          <label>
-            板块代码
-            <input id="boardCode" placeholder="选择板块后自动填入" required>
-          </label>
-          <label>
-            板块名称
-            <input id="boardName" placeholder="选择板块后自动填入" required>
-          </label>
           <label>
             起始累计投入本金
             <input id="initialPrincipal" type="number" step="0.01" placeholder="0.00" required>
@@ -689,13 +758,16 @@
       "use strict";
 
       const STORAGE_KEY = "fund_visualizer_multi_v1";
-      const DEFAULT_STATE = { funds: [], entries: {} };
-      const state = loadState();
+      const SAVE_TIME_KEY = "fund_visualizer_multi_saved_at";
+      const DB_NAME = "fund_visualizer_db";
+      const DB_STORE = "state";
+      const DB_KEY = "app_state";
+      const DEFAULT_STATE = { funds: [], entries: {}, ui: { collapsedFunds: {} } };
+      let state = cloneDefaultState();
       const marketCache = new Map();
       let fundLibrary = [];
       let editingFundId = null;
       let selectedSuggestion = null;
-      let selectedBoard = null;
       let toastTimer = null;
 
       const els = {
@@ -713,6 +785,7 @@
         exportBtn: document.getElementById("exportBtn"),
         importBtn: document.getElementById("importBtn"),
         clearBtn: document.getElementById("clearBtn"),
+        saveStateInfo: document.getElementById("saveStateInfo"),
         importFile: document.getElementById("importFile"),
         fundLibraryState: document.getElementById("fundLibraryState"),
         modal: document.getElementById("fundModal"),
@@ -722,21 +795,24 @@
         fundForm: document.getElementById("fundForm"),
         fundSearch: document.getElementById("fundSearch"),
         suggestions: document.getElementById("suggestions"),
-        boardSearch: document.getElementById("boardSearch"),
-        boardSuggestions: document.getElementById("boardSuggestions"),
         fundCode: document.getElementById("fundCode"),
         fundName: document.getElementById("fundName"),
-        boardCode: document.getElementById("boardCode"),
-        boardName: document.getElementById("boardName"),
         initialPrincipal: document.getElementById("initialPrincipal"),
         initialProfit: document.getElementById("initialProfit"),
         toast: document.getElementById("toast")
       };
 
-      bindEvents();
-      render();
-      loadFundLibrary();
-      refreshAll();
+      init();
+
+      async function init() {
+        state = await loadStateAsync();
+        bindEvents();
+        bindPersistenceEvents();
+        updateSaveStateInfo();
+        render();
+        loadFundLibrary();
+        refreshAll();
+      }
 
       function bindEvents() {
         els.addFundBtn.addEventListener("click", () => openModal());
@@ -752,7 +828,6 @@
         });
         els.fundForm.addEventListener("submit", saveFundFromForm);
         els.fundSearch.addEventListener("input", updateSuggestions);
-        els.boardSearch.addEventListener("input", updateBoardSuggestions);
         els.fundCode.addEventListener("input", () => {
           els.fundCode.value = els.fundCode.value.replace(/\D/g, "").slice(0, 6);
           syncByCode(els.fundCode.value);
@@ -763,49 +838,154 @@
         els.clearBtn.addEventListener("click", clearData);
       }
 
-      function loadState() {
+      function bindPersistenceEvents() {
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden") flushState();
+        });
+        window.addEventListener("pagehide", flushState);
+        window.addEventListener("beforeunload", flushState);
+      }
+
+      async function loadStateAsync() {
+        let indexedRecord = null;
+        let localState = null;
+        let localSavedAt = "";
+
         try {
-          const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return structuredClone(DEFAULT_STATE);
-          const parsed = JSON.parse(raw);
-          return {
-            funds: Array.isArray(parsed.funds) ? parsed.funds : [],
-            entries: parsed.entries && typeof parsed.entries === "object" ? parsed.entries : {}
-          };
+          indexedRecord = await readIndexedState();
         } catch (error) {
-          console.warn("读取本地数据失败", error);
-          return structuredClone(DEFAULT_STATE);
+          console.warn("读取 IndexedDB 失败", error);
         }
+
+        localState = readLocalState();
+        localSavedAt = localStorage.getItem(SAVE_TIME_KEY) || "";
+        const indexedState = indexedRecord && indexedRecord.data ? indexedRecord.data : null;
+        const indexedSavedAt = indexedRecord && indexedRecord.savedAt ? indexedRecord.savedAt : "";
+        const preferLocal = localState && localSavedAt && indexedSavedAt && new Date(localSavedAt) > new Date(indexedSavedAt);
+        const loaded = normalizeState(preferLocal ? localState : (indexedState || localState || cloneDefaultState()));
+        state = loaded;
+        if (indexedState && (!localState || !preferLocal)) writeLocalState(loaded, indexedSavedAt || undefined);
+        if (localState && (!indexedState || preferLocal)) writeIndexedState(loaded, localSavedAt || undefined).catch(error => console.warn("回写 IndexedDB 失败", error));
+        return loaded;
       }
 
       function saveState() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        const savedAt = new Date().toISOString();
+        writeLocalState(state, savedAt);
+        updateSaveStateInfo(savedAt);
+        writeIndexedState(state, savedAt).catch(error => console.warn("写入 IndexedDB 失败", error));
+      }
+
+      function saveStateAsync() {
+        const savedAt = new Date().toISOString();
+        writeLocalState(state, savedAt);
+        updateSaveStateInfo(savedAt);
+        return writeIndexedState(state, savedAt).catch(error => console.warn("写入 IndexedDB 失败", error));
+      }
+
+      function flushState() {
+        saveState();
+      }
+
+      function readLocalState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : null;
+        } catch (error) {
+          console.warn("读取 localStorage 失败", error);
+          return null;
+        }
+      }
+
+      function writeLocalState(value, savedAt) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeState(value)));
+          if (savedAt) localStorage.setItem(SAVE_TIME_KEY, savedAt);
+        } catch (error) {
+          console.warn("写入 localStorage 失败", error);
+        }
+      }
+
+      function openDatabase() {
+        return new Promise((resolve, reject) => {
+          if (!window.indexedDB) {
+            reject(new Error("当前浏览器不支持 IndexedDB"));
+            return;
+          }
+          const request = indexedDB.open(DB_NAME, 1);
+          request.onupgradeneeded = () => {
+            request.result.createObjectStore(DB_STORE);
+          };
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error || new Error("IndexedDB 打开失败"));
+        });
+      }
+
+      async function readIndexedState() {
+        const db = await openDatabase();
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(DB_STORE, "readonly");
+          const request = transaction.objectStore(DB_STORE).get(DB_KEY);
+          request.onsuccess = () => resolve(request.result || null);
+          request.onerror = () => reject(request.error || new Error("IndexedDB 读取失败"));
+          transaction.oncomplete = () => db.close();
+        });
+      }
+
+      async function writeIndexedState(value, savedAt) {
+        const db = await openDatabase();
+        return new Promise((resolve, reject) => {
+          const transaction = db.transaction(DB_STORE, "readwrite");
+          const request = transaction.objectStore(DB_STORE).put({
+            data: normalizeState(value),
+            savedAt: savedAt || new Date().toISOString()
+          }, DB_KEY);
+          request.onerror = () => reject(request.error || new Error("IndexedDB 写入失败"));
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          transaction.onerror = () => {
+            db.close();
+            reject(transaction.error || new Error("IndexedDB 写入失败"));
+          };
+        });
+      }
+
+      function normalizeState(value) {
+        return {
+          funds: Array.isArray(value && value.funds) ? value.funds : [],
+          entries: value && value.entries && typeof value.entries === "object" ? value.entries : {},
+          ui: {
+            collapsedFunds: value && value.ui && value.ui.collapsedFunds && typeof value.ui.collapsedFunds === "object"
+              ? value.ui.collapsedFunds
+              : {}
+          }
+        };
+      }
+
+      function cloneDefaultState() {
+        return JSON.parse(JSON.stringify(DEFAULT_STATE));
+      }
+
+      function updateSaveStateInfo(savedAt) {
+        const time = savedAt || localStorage.getItem(SAVE_TIME_KEY);
+        if (!els.saveStateInfo) return;
+        els.saveStateInfo.textContent = time
+          ? `最近保存 ${new Date(time).toLocaleString("zh-CN", { hour12: false })}`
+          : "尚未保存";
       }
 
       function openModal(fund) {
         editingFundId = fund ? fund.id : null;
         selectedSuggestion = null;
-        selectedBoard = null;
         els.modalTitle.textContent = fund ? "编辑基金" : "添加基金";
         els.fundForm.reset();
         els.suggestions.innerHTML = "";
-        els.boardSuggestions.innerHTML = "";
         if (fund) {
           els.fundSearch.value = `${fund.code} ${fund.name}`;
           els.fundCode.value = fund.code;
           els.fundName.value = fund.name;
-          if (fund.boardCode && fund.boardName) {
-            selectedBoard = {
-              code: fund.boardCode,
-              name: fund.boardName,
-              secId: fund.boardSecId || `90.${fund.boardCode}`
-            };
-            els.boardSearch.value = `${fund.boardName} ${fund.boardCode}`;
-            els.boardCode.value = fund.boardCode;
-            els.boardName.value = fund.boardName;
-          } else {
-            showToast("这只基金还没有关联板块，请编辑补选后保存。");
-          }
           els.initialPrincipal.value = String(fund.initialPrincipal ?? 0);
           els.initialProfit.value = String(fund.initialProfit ?? 0);
         }
@@ -817,15 +997,12 @@
         els.modal.classList.remove("open");
         editingFundId = null;
         selectedSuggestion = null;
-        selectedBoard = null;
       }
 
       function saveFundFromForm(event) {
         event.preventDefault();
         const code = els.fundCode.value.trim();
         const name = els.fundName.value.trim();
-        const boardCode = els.boardCode.value.trim();
-        const boardName = els.boardName.value.trim();
         const initialPrincipal = toNumber(els.initialPrincipal.value);
         const initialProfit = toNumber(els.initialProfit.value);
 
@@ -835,10 +1012,6 @@
         }
         if (!name) {
           showToast("请输入基金名称。");
-          return;
-        }
-        if (!/^BK\d{4}$/.test(boardCode) || !boardName) {
-          showToast("请选择关联板块后再保存。");
           return;
         }
         if (!Number.isFinite(initialPrincipal) || !Number.isFinite(initialProfit)) {
@@ -857,11 +1030,6 @@
           if (fund) {
             fund.code = code;
             fund.name = name;
-            fund.boardCode = boardCode;
-            fund.boardName = boardName;
-            fund.boardSecId = selectedBoard && selectedBoard.code === boardCode
-              ? selectedBoard.secId
-              : `90.${boardCode}`;
             fund.initialPrincipal = roundMoney(initialPrincipal);
             fund.initialProfit = roundMoney(initialProfit);
           }
@@ -871,9 +1039,6 @@
             id,
             code,
             name,
-            boardCode,
-            boardName,
-            boardSecId: selectedBoard && selectedBoard.code === boardCode ? selectedBoard.secId : `90.${boardCode}`,
             initialPrincipal: roundMoney(initialPrincipal),
             initialProfit: roundMoney(initialProfit),
             createdAt: today()
@@ -918,7 +1083,6 @@
         els.fundCode.value = match.code;
         els.fundName.value = match.name;
         els.suggestions.innerHTML = "";
-        recommendBoardForFund(match.name);
       }
 
       function syncByCode(code) {
@@ -927,7 +1091,6 @@
         if (found) {
           els.fundName.value = found.name;
           selectedSuggestion = found;
-          recommendBoardForFund(found.name);
         }
       }
 
@@ -940,93 +1103,6 @@
             item.short.toLowerCase().includes(query) ||
             item.pinyin.toLowerCase().includes(query);
         });
-      }
-
-      async function updateBoardSuggestions() {
-        const query = els.boardSearch.value.trim();
-        selectedBoard = null;
-        els.boardCode.value = "";
-        els.boardName.value = "";
-        els.boardSuggestions.innerHTML = "";
-        if (!query) return;
-
-        try {
-          const matches = await searchBoards(query);
-          renderBoardSuggestions(matches);
-          if (!matches.length) showToast("没有找到匹配的板块，请换个关键词。");
-        } catch (error) {
-          console.warn("板块搜索失败", error);
-          showToast("板块搜索失败，请稍后再试。");
-        }
-      }
-
-      async function recommendBoardForFund(fundName) {
-        if (selectedBoard || els.boardCode.value.trim()) return;
-        const queries = getBoardQueries(fundName);
-        for (const query of queries) {
-          try {
-            const matches = await searchBoards(query);
-            if (matches.length) {
-              renderBoardSuggestions(matches);
-              selectBoard(matches[0], true);
-              return;
-            }
-          } catch (error) {
-            console.warn("板块推荐失败", query, error);
-          }
-        }
-      }
-
-      function renderBoardSuggestions(matches) {
-        els.boardSuggestions.innerHTML = "";
-        matches.slice(0, 8).forEach(match => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "suggestion";
-          button.innerHTML = `<strong>${escapeHtml(match.code)}</strong><span>${escapeHtml(match.name)}</span><small>板块</small>`;
-          button.addEventListener("click", () => selectBoard(match, false));
-          els.boardSuggestions.appendChild(button);
-        });
-      }
-
-      function selectBoard(match, recommended) {
-        selectedBoard = match;
-        els.boardSearch.value = `${match.name} ${match.code}`;
-        els.boardCode.value = match.code;
-        els.boardName.value = match.name;
-        if (!recommended) els.boardSuggestions.innerHTML = "";
-      }
-
-      async function searchBoards(query) {
-        const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(query)}&type=14`;
-        const response = await loadJsonp(url);
-        const list = response && response.QuotationCodeTable && Array.isArray(response.QuotationCodeTable.Data)
-          ? response.QuotationCodeTable.Data
-          : [];
-        return list
-          .filter(item => item && item.Classify === "BK" && item.Code && item.Name)
-          .map(item => ({
-            code: String(item.Code),
-            name: String(item.Name),
-            secId: item.QuoteID ? String(item.QuoteID) : `${item.MktNum || "90"}.${item.Code}`
-          }));
-      }
-
-      function getBoardQueries(fundName) {
-        const name = String(fundName || "");
-        const known = [
-          "白酒", "半导体", "芯片", "医药", "医疗", "新能源", "光伏", "军工", "证券", "银行",
-          "保险", "地产", "房地产", "煤炭", "钢铁", "有色", "稀土", "化工", "通信", "传媒",
-          "消费", "食品饮料", "家电", "汽车", "电池", "人工智能", "机器人", "计算机", "软件"
-        ];
-        const hits = known.filter(keyword => name.includes(keyword));
-        const cleaned = name
-          .replace(/[A-Z]$/i, "")
-          .replace(/\(.+?\)/g, "")
-          .replace(/（.+?）/g, "")
-          .replace(/(指数|联接|混合|股票|债券|基金|增强|主题|行业|中证|沪深|上证|创业板|LOF|ETF)/gi, " ")
-          .trim();
-        return [...new Set([...hits, cleaned].filter(Boolean))];
       }
 
       async function loadFundLibrary() {
@@ -1057,29 +1133,19 @@
         for (const fund of state.funds) {
           let realtime = null;
           let history = [];
-          let board = null;
           let error = "";
           try {
             realtime = await fetchRealtime(fund.code);
           } catch (error) {
             console.warn("基金估值加载失败", fund.code, error);
-          }
-          try {
-            if (fund.boardSecId || fund.boardCode) {
-              board = await fetchBoardRealtime(fund);
-            } else {
-              error = "请编辑补选关联板块";
-            }
-          } catch (error) {
-            console.warn("板块行情加载失败", fund.code, error);
-            error = "板块行情加载失败";
+            error = "基金行情加载失败";
           }
           try {
             history = await fetchHistory(fund.code);
           } catch (error) {
             console.warn("历史净值加载失败", fund.code, error);
           }
-          marketCache.set(fund.id, { realtime, board, history, error });
+          marketCache.set(fund.id, { realtime, history, error });
           render();
         }
         els.refreshBtn.disabled = false;
@@ -1128,28 +1194,6 @@
         });
       }
 
-      async function fetchBoardRealtime(fund) {
-        const secId = fund.boardSecId || `90.${fund.boardCode}`;
-        const url = `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(secId)}&fields=f57,f58,f86,f169,f170`;
-        const response = await loadJsonp(url);
-        if (!response || response.rc !== 0 || !response.data) {
-          throw new Error("板块行情没有返回数据");
-        }
-        const data = response.data;
-        const rawPct = toNumber(data.f170);
-        if (!Number.isFinite(rawPct)) {
-          throw new Error("板块涨幅无效");
-        }
-        return {
-          code: String(data.f57 || fund.boardCode || ""),
-          name: String(data.f58 || fund.boardName || ""),
-          secId,
-          pct: rawPct / 100,
-          change: toNumber(data.f169) / 100,
-          time: formatMarketTime(data.f86)
-        };
-      }
-
       async function fetchHistory(code) {
         const unique = `fund-history-${code}-${Date.now()}`;
         await loadScript(`https://fund.eastmoney.com/pingzhongdata/${encodeURIComponent(code)}.js?rt=${Date.now()}`, unique);
@@ -1179,35 +1223,6 @@
         });
       }
 
-      function loadJsonp(url) {
-        return new Promise((resolve, reject) => {
-          const callbackName = `fundVizJsonp_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-          const separator = url.includes("?") ? "&" : "?";
-          const script = document.createElement("script");
-          let settled = false;
-          const cleanup = () => {
-            delete window[callbackName];
-            script.remove();
-          };
-
-          window[callbackName] = data => {
-            settled = true;
-            cleanup();
-            resolve(data);
-          };
-
-          script.src = `${url}${separator}cb=${callbackName}&_=${Date.now()}`;
-          script.async = true;
-          script.onerror = () => {
-            if (!settled) {
-              cleanup();
-              reject(new Error(`JSONP 加载失败：${url}`));
-            }
-          };
-          document.head.appendChild(script);
-        });
-      }
-
       function render() {
         const models = state.funds.map(buildFundModel);
         renderSummary(models);
@@ -1218,9 +1233,8 @@
         const entries = getEntries(fund.id);
         const market = marketCache.get(fund.id) || {};
         const realtime = market.realtime || null;
-        const board = market.board || null;
-        const history = prepareFiveDayHistory(market.history || [], board);
-        const pct = board && Number.isFinite(board.pct) ? board.pct : null;
+        const history = prepareFiveDayHistory(market.history || [], realtime);
+        const pct = realtime && Number.isFinite(realtime.pct) ? realtime.pct : null;
         const todayEntry = entries.find(entry => entry.date === today());
         const savedDayProfitSum = entries.reduce((sum, entry) => {
           if (entry.date === today()) return sum;
@@ -1238,7 +1252,6 @@
           fund,
           entries,
           realtime,
-          board,
           history,
           pct,
           cumulativePrincipal,
@@ -1247,6 +1260,7 @@
           marketValue,
           todayAmount: todayEntry ? todayEntry.amount : 0,
           error: market.error || "",
+          collapsed: !!(state.ui && state.ui.collapsedFunds && state.ui.collapsedFunds[fund.id]),
           advice
         };
       }
@@ -1278,7 +1292,7 @@
 
         models.forEach(model => {
           const card = document.createElement("article");
-          card.className = "fund-card";
+          card.className = `fund-card${model.collapsed ? " collapsed" : ""}`;
           card.dataset.fundId = model.fund.id;
           card.innerHTML = fundCardTemplate(model);
           els.fundList.appendChild(card);
@@ -1300,67 +1314,75 @@
       function fundCardTemplate(model) {
         const fund = model.fund;
         const realtime = model.realtime;
-        const board = model.board;
         const pctText = model.pct === null ? "--" : `${formatSigned(model.pct)}%`;
         const netText = realtime && Number.isFinite(realtime.estimatedNet) ? realtime.estimatedNet.toFixed(4) : "--";
         const unitText = realtime && Number.isFinite(realtime.unitNet) ? realtime.unitNet.toFixed(4) : "--";
-        const boardName = board && board.name ? board.name : (fund.boardName || "未配置板块");
-        const boardCode = board && board.code ? board.code : (fund.boardCode || "--");
-        const timeText = board && board.time ? board.time : "等待板块行情";
+        const timeText = realtime && realtime.time ? realtime.time : "等待基金行情";
+        const arrow = model.collapsed ? "›" : "⌄";
         const historyHtml = model.history.length ? model.history.map(item => {
           const label = item.estimated ? `${item.date} 估` : item.date;
           return `<div class="history-row"><span>${escapeHtml(label)}</span><strong class="${valueClass(item.pct)}">${formatSigned(item.pct)}%</strong></div>`;
         }).join("") : "<div class=\"history-row\"><span>暂无历史数据</span><strong>--</strong></div>";
 
         return `
-          <div class="fund-head">
-            <div class="fund-title">
-              <h3>${escapeHtml(fund.name)}</h3>
-              <div class="tag-row">
-                <span class="tag">${escapeHtml(fund.code)}</span>
-                <span class="tag">${escapeHtml(boardName)} / ${escapeHtml(boardCode)}</span>
-                <span>起始：本金 ${money(fund.initialPrincipal)} / 收益 ${signedMoney(fund.initialProfit)}</span>
-                ${model.error ? `<span class="tag">${escapeHtml(model.error)}</span>` : ""}
+          <div class="fund-main-row">
+            <div class="fund-head">
+              <button class="collapse-toggle" data-action="toggle-collapse" data-fund-id="${fund.id}" title="${model.collapsed ? "展开" : "折叠"}">${arrow}</button>
+              <div class="fund-title">
+                <h3>${escapeHtml(fund.name)}</h3>
+                <div class="tag-row">
+                  <span class="tag">${escapeHtml(fund.code)}</span>
+                  <span>起始：本金 ${money(fund.initialPrincipal)} / 收益 ${signedMoney(fund.initialProfit)}</span>
+                  ${model.error ? `<span class="tag">${escapeHtml(model.error)}</span>` : ""}
+                </div>
               </div>
             </div>
+            <div class="fund-summary-strip">
+              <div class="quick-metric"><span>今日收益</span><strong class="${valueClass(model.liveDayProfit)}">${signedMoney(model.liveDayProfit)}</strong></div>
+              <div class="quick-metric"><span>总收益</span><strong class="${valueClass(model.totalProfit)}">${signedMoney(model.totalProfit)}</strong></div>
+              <div class="quick-metric"><span>今日涨幅</span><strong class="${valueClass(model.pct)}">${pctText}</strong></div>
+            </div>
+          </div>
+
+          <div class="fund-details">
             <div class="card-actions">
               <button class="secondary icon" data-action="edit" data-fund-id="${fund.id}" title="编辑">✎</button>
               <button class="danger icon" data-action="delete" data-fund-id="${fund.id}" title="删除">×</button>
             </div>
-          </div>
 
-          <div class="card-grid">
-            <div class="mini-metric"><span>实时估值</span><strong>${netText}</strong></div>
-            <div class="mini-metric"><span>上一单位净值</span><strong>${unitText}</strong></div>
-            <div class="mini-metric"><span>关联板块涨幅</span><strong class="${valueClass(model.pct)}">${pctText}</strong></div>
-            <div class="mini-metric"><span>累计本金</span><strong>${money(model.cumulativePrincipal)}</strong></div>
-            <div class="mini-metric"><span>今日估算收益</span><strong class="${valueClass(model.liveDayProfit)}">${signedMoney(model.liveDayProfit)}</strong></div>
-            <div class="mini-metric"><span>累计总收益</span><strong class="${valueClass(model.totalProfit)}">${signedMoney(model.totalProfit)}</strong></div>
-          </div>
-
-          <div class="entry-row">
-            <label>
-              今天新增买入金额
-              <input data-entry-input="${fund.id}" type="number" step="0.01" value="${escapeHtml(String(model.todayAmount || 0))}">
-            </label>
-            <button data-action="save-entry" data-fund-id="${fund.id}">保存今日投入</button>
-            <span class="tag">${escapeHtml(timeText)}</span>
-          </div>
-
-          <div class="chart-wrap">
-            <div class="chart-box">
-              <div class="chart-title">
-                <span>近 5 个交易日涨幅</span>
-                <span>${model.history.length ? "今日为板块实时" : "等待数据"}</span>
-              </div>
-              ${renderChart(model.history)}
+            <div class="card-grid">
+              <div class="mini-metric"><span>实时估值</span><strong>${netText}</strong></div>
+              <div class="mini-metric"><span>上一单位净值</span><strong>${unitText}</strong></div>
+              <div class="mini-metric"><span>今日涨跌幅</span><strong class="${valueClass(model.pct)}">${pctText}</strong></div>
+              <div class="mini-metric"><span>累计本金</span><strong>${money(model.cumulativePrincipal)}</strong></div>
+              <div class="mini-metric"><span>今日估算收益</span><strong class="${valueClass(model.liveDayProfit)}">${signedMoney(model.liveDayProfit)}</strong></div>
+              <div class="mini-metric"><span>累计总收益</span><strong class="${valueClass(model.totalProfit)}">${signedMoney(model.totalProfit)}</strong></div>
             </div>
-            <div class="history-list">${historyHtml}</div>
-          </div>
 
-          <div class="advice ${model.advice.tone}">
-            <strong>${escapeHtml(model.advice.title)}</strong><br>
-            ${escapeHtml(model.advice.body)}
+            <div class="entry-row">
+              <label>
+                今天新增买入金额
+                <input data-entry-input="${fund.id}" type="number" step="0.01" value="${escapeHtml(String(model.todayAmount || 0))}">
+              </label>
+              <button data-action="save-entry" data-fund-id="${fund.id}">保存今日投入</button>
+              <span class="tag">${escapeHtml(timeText)}</span>
+            </div>
+
+            <div class="chart-wrap">
+              <div class="chart-box">
+                <div class="chart-title">
+                  <span>近 5 个交易日涨幅</span>
+                  <span>${model.history.length ? "含今日估算" : "等待数据"}</span>
+                </div>
+                ${renderChart(model.history)}
+              </div>
+              <div class="history-list">${historyHtml}</div>
+            </div>
+
+            <div class="advice ${model.advice.tone}">
+              <strong>${escapeHtml(model.advice.title)}</strong><br>
+              ${escapeHtml(model.advice.body)}
+            </div>
           </div>
         `;
       }
@@ -1374,10 +1396,18 @@
         if (action === "edit") {
           openModal(fund);
         }
+        if (action === "toggle-collapse") {
+          if (!state.ui) state.ui = { collapsedFunds: {} };
+          if (!state.ui.collapsedFunds) state.ui.collapsedFunds = {};
+          state.ui.collapsedFunds[fundId] = !state.ui.collapsedFunds[fundId];
+          saveState();
+          render();
+        }
         if (action === "delete") {
           if (confirm(`删除 ${fund.name}？该基金的本地记录也会删除。`)) {
             state.funds = state.funds.filter(item => item.id !== fundId);
             delete state.entries[fundId];
+            if (state.ui && state.ui.collapsedFunds) delete state.ui.collapsedFunds[fundId];
             marketCache.delete(fundId);
             saveState();
             render();
@@ -1408,7 +1438,7 @@
         }, 0);
         const principalAfterToday = roundMoney(principalBeforeToday + amount);
         if (!Number.isFinite(model.pct)) {
-          showToast("请先补选关联板块并刷新行情，再保存今日投入。");
+          showToast("请先刷新基金行情，再保存今日投入。");
           return;
         }
         const pct = model.pct;
@@ -1418,7 +1448,7 @@
           amount: roundMoney(amount),
           pct,
           dayProfit,
-          estimateTime: model.board && model.board.time ? model.board.time : "",
+          estimateTime: model.realtime && model.realtime.time ? model.realtime.time : "",
           savedAt: new Date().toISOString()
         };
 
@@ -1431,16 +1461,16 @@
         showToast(`${fund.name} 今日投入已保存。`);
       }
 
-      function prepareFiveDayHistory(history, board) {
+      function prepareFiveDayHistory(history, realtime) {
         const points = history.slice(-5);
-        if (board && board.time && Number.isFinite(board.pct)) {
-          const liveDate = board.time.slice(0, 10);
+        if (realtime && realtime.time && Number.isFinite(realtime.pct)) {
+          const liveDate = realtime.time.slice(0, 10);
           const last = points[points.length - 1];
           if (!last || last.date !== liveDate) {
             points.push({
               date: liveDate || today(),
-              net: null,
-              pct: board.pct,
+              net: Number.isFinite(realtime.estimatedNet) ? realtime.estimatedNet : null,
+              pct: realtime.pct,
               estimated: true
             });
             while (points.length > 5) points.shift();
@@ -1485,7 +1515,7 @@
         if (!Number.isFinite(pct)) {
           return {
             title: "观望",
-            body: "当前没有拿到关联板块实时涨幅，先不要根据本页做加减仓动作，等行情刷新或补选板块后再判断。",
+            body: "当前没有拿到基金实时估值涨幅，先不要根据本页做加减仓动作，等行情刷新后再判断。",
             tone: "warn"
           };
         }
@@ -1511,14 +1541,14 @@
         if (pct <= -0.8) {
           return {
             title: "观望或小额定投",
-            body: `今天关联板块偏弱，稳健做法是控制节奏，只执行原本计划内的投入。${riskNote}`,
+            body: `今天基金估值偏弱，稳健做法是控制节奏，只执行原本计划内的投入。${riskNote}`,
             tone: "warn"
           };
         }
         if (pct >= 0.8) {
           return {
             title: "持有为主",
-            body: `今天关联板块偏强，不急于追高；已有仓位可以继续观察，新增资金分批处理。${riskNote}`,
+            body: `今天基金估值偏强，不急于追高；已有仓位可以继续观察，新增资金分批处理。${riskNote}`,
             tone: ""
           };
         }
@@ -1558,8 +1588,7 @@
             if (!Array.isArray(data.funds) || !data.entries || typeof data.entries !== "object") {
               throw new Error("文件格式不正确");
             }
-            state.funds = data.funds;
-            state.entries = data.entries;
+            state = normalizeState(data);
             saveState();
             marketCache.clear();
             render();
@@ -1576,6 +1605,7 @@
         if (!confirm("清空本机保存的所有基金和录入记录？")) return;
         state.funds = [];
         state.entries = {};
+        state.ui = { collapsedFunds: {} };
         marketCache.clear();
         saveState();
         render();
